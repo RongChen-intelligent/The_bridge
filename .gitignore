@@ -1,2 +1,32 @@
-# Local working files
+# Local working files and generated QA artifacts
 /work/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+.dev.vars*
+*.local
+*.pem
+*.key
+*.sqlite*
+/private/
+/.local-pgdata/
+
+# Dependencies and build caches
+node_modules/
+dist/
+build/
+.cache/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Editor, OS, and Office temporary files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+~$*
+*.tmp
+*.log

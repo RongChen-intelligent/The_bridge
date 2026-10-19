@@ -1,0 +1,15 @@
+import {build} from 'esbuild';
+import fs from 'node:fs';
+import path from 'node:path';
+const root=path.resolve(import.meta.dirname,'..'),dist=path.join(root,'dist/frontend');
+fs.mkdirSync(dist,{recursive:true});
+const result=await build({entryPoints:[path.join(root,'frontend/main.tsx')],bundle:true,minify:true,write:false,format:'iife',jsx:'automatic',define:{'process.env.NODE_ENV':'"production"'},metafile:true});
+if(Object.keys(result.metafile.inputs).some(p=>/preview\/demo|app\/api\//.test(p)))throw Error('Unexpected demo/server code in client bundle');
+const css=fs.readFileSync(path.join(root,'frontend/styles.css'),'utf8');
+const js=result.outputFiles[0].text.replaceAll('</script','<\\/script');
+const html=`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>THE BRIDGE · 校园平台 / Campus platform</title><style>${css}</style></head><body><div id="root"></div><script src="./bridge-config.js"></script><script>${js}</script></body></html>`;
+for(const name of ['index.html','thebridge.idhs.html'])fs.writeFileSync(path.join(dist,name),html);
+fs.copyFileSync(path.join(root,'frontend/bridge-config.js'),path.join(dist,'bridge-config.js'));
+fs.cpSync(path.join(root,'frontend/assets'),path.join(dist,'assets'),{recursive:true});
+fs.writeFileSync(path.join(root,'dist/frontend-inputs.json'),JSON.stringify(Object.keys(result.metafile.inputs),null,2));
+console.log('Built real API frontend; no demo store or embedded credentials.');
