@@ -3,7 +3,7 @@ const {createApp,hash}=require('../backend/core');const {openStore}=require('./h
 const {CHUNK,MAX_FILE}=require('../backend/attachments');
 test('binary attachments survive gateway-sized requests, publication, editing and cleanup',async t=>{
  const store=await openStore();t.after(()=>store.close());let now=Date.now();const origin='https://campus.test',session='b'.repeat(64);
- await store.set('accounts','staff',{id:'staff',username:'staff',role:'staff',active:1,must_change:0,auth_version:0});
+ await store.set('accounts','staff',{id:'staff',username:'staff',role:'owner',active:1,must_change:0,auth_version:0});
  await store.set('sessions',hash(session),{account_id:'staff',auth_version:0,expires_at:now+10*86400000});
  const app=createApp({store,now:()=>now,config:{PUBLIC_ORIGIN:origin}});
  async function call(route,method='GET',data,staff=true){const [name,query='']=route.split('?'),binary=Buffer.isBuffer(data);const r=await app({httpMethod:method,headers:{origin,'content-type':binary?'application/octet-stream':'application/json',...(staff?{cookie:'__Host-bridge_session='+session}:{})},queryStringParameters:{route:name,...Object.fromEntries(new URLSearchParams(query))},body:binary?data.toString('base64'):data===undefined?undefined:JSON.stringify(data),isBase64Encoded:binary});return {status:r.statusCode,data:r.isBase64Encoded?Buffer.from(r.body,'base64'):JSON.parse(r.body)};}

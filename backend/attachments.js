@@ -8,7 +8,18 @@ function signature(type,b){return type==='application/pdf'?b.subarray(0,5).toStr
 function createAttachments({store,now,fail,legacy}){
  const error=(message,status=400)=>fail(status,message,'Attachment upload failed.');
  function active(m,actor){if(!m||m.kind!=='attachment-upload'||m.owner!==actor||m.bound||Date.parse(m.expiresAt)<=now())error('上传已失效或无权使用，请重新选择附件。',409);}
+ async function references(kept,old,{tx,kind,id}){
+  const ref=kind+':'+id, keepIds=new Set(kept.filter(f=>f.chunked).map(f=>f.id));
+  for(const f of new Map([...old,...kept].filter(f=>f.chunked).map(f=>[f.id,f])).values()){
+   const m=await tx.get('meta',key(f.id));
+   if(!m){if(keepIds.has(f.id))error('附件已失效，请重新上传。',409);continue;}
+   const refs=new Set(m.references??(m.bound?[m.bound.kind+':'+m.bound.id]:[]));
+   if(keepIds.has(f.id))refs.add(ref);else refs.delete(ref);
+   await tx.set('meta',key(f.id),{...m,references:[...refs],expiresAt:refs.size?null:new Date(now()+86400000).toISOString()});
+  }
+ }
  return {
+  references,
   async start(data,actor){
    if(typeof data.name!=='string'||!data.name.trim()||data.name.length>180||!types.includes(data.type)||!Number.isSafeInteger(data.size)||data.size<12||data.size>MAX_FILE)error('附件须为图片或 PDF，单个不超过 10 MB。');
    const id=randomUUID(),m={id,kind:'attachment-upload',owner:actor,name:data.name.trim(),type:data.type,size:data.size,chunks:Math.ceil(data.size/CHUNK),next:0,created_at:now(),expiresAt:new Date(now()+86400000).toISOString()};
@@ -46,7 +57,7 @@ function createAttachments({store,now,fail,legacy}){
     if(files.some(x=>x.id===result.id))error('同一附件不能重复添加。');
     total+=result.size;if(total>MAX_TOTAL)error('附件合计不能超过 40 MB。');files.push(result);
    }
-   for(const f of old)if(f.chunked&&!files.some(x=>x.id===f.id)){const m=await tx.get('meta',key(f.id));if(m)await tx.set('meta',key(f.id),{...m,expiresAt:new Date(now()+86400000).toISOString()});}
+   await references(files,old,{tx,kind,id});
    return files;
   },
   async read(file,part){

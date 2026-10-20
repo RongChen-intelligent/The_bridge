@@ -28,7 +28,7 @@ def archive(name,entries):
 frontend=[(p,p.relative_to(root/'dist/frontend').as_posix()) for p in (root/'dist/frontend').rglob('*') if p.is_file()]
 assert {'index.html','thebridge.idhs.html','bridge-config.js','assets/cormorant.woff2','assets/manrope.woff2'} <= {n for _,n in frontend}
 records=[archive(f'01-THE-BRIDGE-前端-{version}.zip',frontend)]
-backend=['index.js','core.js','attachments.js','retention.js','store.js','http-store.js','http-client.js','package.json','package-lock.json']
+backend=['index.js','core.js','moderation.js','system-updates.js','attachments.js','retention.js','store.js','http-store.js','http-client.js','package.json','package-lock.json']
 records.append(archive(f'02-THE-BRIDGE-云函数-{version}.zip',[(root/'backend'/f,f) for f in backend]))
 source=[]
 for folder in ['frontend','backend','database','tests','scripts','docs']:

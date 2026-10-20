@@ -2,9 +2,9 @@
 
 环境：`idhssses-d7gtdzl4f86a805c9`。正式静态应用为 `idhs`，目录 `/idhs/`；云函数为 `bridge-api`。沿用现有网关域名、数据库和全部环境变量。
 
-1. 在现有 `bridge-api` 云函数中上传 `02-THE-BRIDGE-云函数-1.4.0.zip`，保存部署。包根目录直接包含 index.js 等文件；入口仍为 `index.main`。保留现有环境变量、网关和执行时间，不创建新函数、不重置密码。
-   部署后先打开正式 `/bridge-api?route=health`，确认 `release: "1.4.0"` 和 `api_version: 4`。如果控制台函数测试已是新版而网址仍旧，检查 HTTP 路径关联的函数版本；详见 `docs/letter-fix.md`。
-2. 解压 `01-THE-BRIDGE-前端-1.4.0.zip`。将 `index.html`、`thebridge.idhs.html`、`bridge-config.js` 和完整 `assets/` 文件夹覆盖上传到静态托管文件管理的 `idhs/`。不要传到静态根目录，也不要传到 `idhs1/`。
+1. 在现有 `bridge-api` 云函数中上传 `02-THE-BRIDGE-云函数-1.5.0.zip`，保存部署。包根目录直接包含 index.js 等文件；入口仍为 `index.main`。保留现有环境变量、网关和执行时间，不创建新函数、不重置密码。
+   部署后先打开正式 `/bridge-api?route=health`，确认 `release: "1.5.0"` 和 `api_version: 5`。如果控制台函数测试已是新版而网址仍旧，检查 HTTP 路径关联的函数版本；详见 `docs/letter-fix.md`。
+2. 解压 `01-THE-BRIDGE-前端-1.5.0.zip`。将 `index.html`、`thebridge.idhs.html`、`bridge-config.js` 和完整 `assets/` 文件夹覆盖上传到静态托管文件管理的 `idhs/`。不要传到静态根目录，也不要传到 `idhs1/`。
 3. 如果选择平台 ZIP 部署方式，上传前端 ZIP，并确认自定义部署命令目标是：
 
 ```sh
@@ -19,4 +19,6 @@ tcb hosting deploy ./ /idhs -e idhssses-d7gtdzl4f86a805c9
 
 仅前端回滚不会清空数据，但旧界面无法完整操作新增功能。不要使用旧后端处理新版多选投票；如需回滚后台，先停止新增投票并由维护者评估新记录兼容性。
 
-1.4.0：工作人员可删除来信与投票；来信保留期从首次回信起 30 天，不随追加延长。需要启用 `docs/retention-trigger.json` 的定时触发器，详见 `docs/update-guide.md`。
+1.5.0：工作人员可删除来信与投票；来信保留期从首次回信起 30 天，不随追加延长。需要启用 `docs/retention-trigger.json` 的定时触发器，详见 `docs/update-guide.md`。
+
+当前1.5.0审核、每日清理与完整上线步骤见 `docs/release-1.5.0.md`；资源变化见 `docs/resource-optimization-1.5.0.md`。

@@ -2,7 +2,7 @@
 
 SSES 学生会校园平台。React 前端，CloudBase 云函数 HTTP API，PostgreSQL JSONB 记录存储。本次版本在已成功部署的环境上更新界面与业务功能。
 
-当前版本 1.4.0：附件采用 512 KB 二进制分段上传，单文件 10 MB、合计 40 MB；正文对齐与字号即时生效，保留来信详情白屏保护。正式健康接口应返回 `release: "1.4.0"`、`api_version: 4`。原因、复现与发布诊断见 `docs/letter-fix.md`。
+当前版本 1.5.0：附件采用 512 KB 二进制分段上传，单文件 10 MB、合计 40 MB；正文对齐与字号即时生效，保留来信详情白屏保护。正式健康接口应返回 `release: "1.5.0"`、`api_version: 5`。原因、复现与发布诊断见 `docs/letter-fix.md`。
 
 ## 正式入口
 
@@ -50,4 +50,6 @@ python scripts/package-release.py --out <交付目录>
 
 字体本地打包：Cormorant Garamond（Christian Thalmann / Cormorant Project Authors）与 Manrope（Mikhail Sharanda / Manrope Project Authors），均为 SIL OFL；许可证在 `frontend/assets/`。参考图由用户提供，存于 `docs/homepage-reference.png`。没有使用外部校园照片、视频或编造活动统计。
 
-1.4.0：工作人员可删除来信与投票；来信保留期从首次回信起 30 天，不随追加延长。需要启用 `docs/retention-trigger.json` 的定时触发器，详见 `docs/update-guide.md`。
+1.5.0：工作人员可删除来信与投票；来信保留期从首次回信起 30 天，不随追加延长。需要启用 `docs/retention-trigger.json` 的定时触发器，详见 `docs/update-guide.md`。
+
+当前1.5.0审核、每日清理与完整上线步骤见 `docs/release-1.5.0.md`；资源变化见 `docs/resource-optimization-1.5.0.md`。

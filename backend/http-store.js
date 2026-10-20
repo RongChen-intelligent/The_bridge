@@ -1,5 +1,3 @@
-const {RETENTION_MS,pruneLettersSQL,pruneVotesSQL}=require('./retention');
-const {pruneOrphanChunks}=require('./attachments');
 'use strict';
 const {Store:ReadStore,TABLES}=require('./store');
 const copy=v=>JSON.parse(JSON.stringify(v));
@@ -41,18 +39,5 @@ class HttpStore extends ReadStore{
  }
  async set(table,id,value){return this.transaction(tx=>tx.set(table,id,value));}
  async remove(table,id){return this.transaction(tx=>tx.remove(table,id));}
- async prune(at,limit=20){
-  if(!Number.isFinite(at)||!Number.isInteger(limit)||limit<1||limit>100)throw Error('Invalid cleanup');
-  // Single SQL statement; row locking also conflicts with commit_records' table lock.
-  await this.db.query(`WITH expired AS (
-   SELECT entity,id FROM bridge_private.records
-   WHERE entity IN ('sessions','challenges','tickets','limits','activity','meta') AND expires_at<$1::timestamptz
-   ORDER BY expires_at LIMIT $2 FOR UPDATE SKIP LOCKED
-  ) DELETE FROM bridge_private.records r USING expired e
-    WHERE r.entity=e.entity AND r.id=e.id AND r.expires_at<$1::timestamptz`,[new Date(at).toISOString(),limit]);
-  await this.db.query(pruneOrphanChunks,[at-86400000,limit]);
-  await this.db.query(pruneLettersSQL,[at-RETENTION_MS,limit]);
-  await this.db.query(pruneVotesSQL,[limit]);
- }
 }
 module.exports={HttpStore};

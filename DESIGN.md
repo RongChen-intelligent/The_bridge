@@ -22,3 +22,6 @@ Interaction: 44px targets, visible keyboard focus, 16px main body, clear disable
 Initial review: dark incumbent conflicts with the white reference; 12px running text and repeated icon cards weaken hierarchy. Initial inspector: 12 FAIL / 4 WARN, recorded in .taste-skill. Rebuild the hero, replace repeated cards with three different editorial chapter compositions, unify the functional surfaces.
 
 1.4.0: Shared footer adds a two-column FAQ and compact release history, stacked on mobile. Native details/summary preserve keyboard interaction. Destructive staff actions name the deleted object and confirm before request; the thread shows its first-reply retention deadline.
+
+## 1.5.0 管理界面扩展
+沿用白色/深蓝设计；审核中心使用当前版与待审版双栏对比，760px以下单栏。状态、提交人、理由及操作集中展示。管理员系统更新与公开学生更新分离，所有列表手动刷新，不轮询。

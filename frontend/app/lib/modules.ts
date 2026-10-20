@@ -7,4 +7,9 @@ export type StaffUser={id:string;username:string;display_name:string;role:'owner
 export type Attachment={id:string;name:string;type:string;size:number;data?:string;chunked?:boolean;chunks?:number;uploaded?:boolean};
 export type Notice={id:string;title:string;content:string;state:'draft'|'published';created_at:number;updated_at:number;version:number;publish_at?:number;format?:'plain'|'markdown';align?:'left'|'center'|'right';text_size?:'small'|'normal'|'large'|'xlarge';attachments?:Attachment[]};
 export type PollOption={id:string;label:string;votes?:number;percent?:number;rank?:number;image?:Attachment};
-export type Poll={id:string;title:string;description:string;state:'open'|'closed';created_at:number;ends_at:number;options:PollOption[];total?:number;choice?:string;choices?:string[];max_choices?:number;version?:number;show_counts?:boolean;show_percent?:boolean;protection?:{accepted:number;blocked:number}};
+export type Poll={id:string;title:string;description:string;state:'draft'|'open'|'closed';created_at:number;ends_at:number;options:PollOption[];total?:number;choice?:string;choices?:string[];max_choices?:number;version?:number;show_counts?:boolean;show_percent?:boolean;protection?:{accepted:number;blocked:number}};
+
+export type ReviewState='draft'|'pending'|'approved'|'rejected'|'withdrawn';
+export type ReviewActor={id:string;name:string;username:string};
+export type Review={id:string;kind:'notice'|'poll';target_id:string;title?:string;action:'create'|'edit'|'delete'|'close'|'settings';state:ReviewState;version:number;base_version:number|null;submitted_by:ReviewActor;updated_by:ReviewActor;created_at:number;submitted_at?:number|null;updated_at:number;reason?:string;invalidated?:boolean;candidate?:Notice|Poll|null;current?:Notice|Poll|null};
+export type PublishResult={ok:boolean;id:string;review_id?:string;review_state?:'pending'|'draft'};

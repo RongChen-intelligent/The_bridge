@@ -2,6 +2,8 @@
 const {randomBytes,randomUUID,randomInt,createHash,createHmac,scrypt:derive,timingSafeEqual}=require('node:crypto');
 const {promisify}=require('node:util');
 const {createAttachments,CHUNK}=require('./attachments');
+const {createModeration}=require('./moderation');
+const systemUpdates=require('./system-updates');
 const {firstReplyAt,expiresAt:letterExpiresAt,expired}=require('./retention');
 const LETTER_GONE='未找到来信：该信件可能已在首次回信后超过30天，或被工作人员删除。请同时核对查询码。';
 const scrypt=promisify(derive);
@@ -80,6 +82,7 @@ function createApp({store,config,now=Date.now}) {
     const a=await session(cookies,db);
     if(!a||a.must_change||(owner&&a.role!=='owner'))fail(403,'需要有效的工作人员权限。','Authorized staff access required.');return a;
   }
+  const moderation=createModeration({store,uploads,authorize,audit,now,fail,idOK,textOK,fileMeta,hash});
   async function issueSession(tx,a,raw) {await tx.set('sessions',hash(raw),{account_id:a.id,auth_version:a.auth_version,expires_at:now()+28800000,expiresAt:new Date(now()+28800000),created_at:now()});}
   async function budgets(items) {
     const at=now();
@@ -143,7 +146,7 @@ function createApp({store,config,now=Date.now}) {
         if(!data||typeof data!=='object'||Array.isArray(data))fail(400,'请求格式不正确。','Invalid request.');
       }
       if(route==='upload'&&method==='POST'){const a=await authorize(cookies);return respond(await uploads.start(data,a.id),201);}
-      if(route==='health'&&method==='GET'){const owner=await store.get('meta','owner');return respond({ok:true,service:'THE BRIDGE',storage:'postgresql',schema:1,api_version:4,release:'1.4.0',ownerConfigured:!!owner});}
+      if(route==='health'&&method==='GET'){const owner=await store.get('meta','owner');return respond({ok:true,service:'THE BRIDGE',storage:'postgresql',schema:1,api_version:5,release:'1.5.0',ownerConfigured:!!owner});}
       if(route==='auth') {
         await bootstrap();
         if(method==='GET'){const a=await session(cookies);return respond({user:a?safeUser(a):null});}
@@ -224,7 +227,7 @@ function createApp({store,config,now=Date.now}) {
         if(method==='GET'){
           if(q.id){const row=idOK(q.id)?await activeLetter(q.id):null;if(!row)fail(404,'来信不存在。','Letter not found.');return respond({feedback:safeLetter(row)});}
           const page=Math.max(0,Math.min(100000,Math.floor(Number(q.page)||0))),where={active_at:now(),...(statuses.includes(q.status)?{status:q.status}:{}),...(categories.includes(q.category)?{category:q.category}:{})};
-          const rows=await store.list('feedback',where,21,page*20,['oldest','most','latest'].includes(q.sort)?q.sort:'latest'),counts=await Promise.all(statuses.map(async status=>({status,count:await store.count('feedback',{...where,status})})));
+          const rows=await store.list('feedback',where,21,page*20,['oldest','most','latest'].includes(q.sort)?q.sort:'latest'),counts=await store.countFeedbackStatuses(where);
           return respond({feedback:rows.slice(0,20).map(row=>({...safeLetter(row),messages:undefined})),hasMore:rows.length>20,counts});
         }
         if(method==='PATCH'){
@@ -235,27 +238,21 @@ function createApp({store,config,now=Date.now}) {
             const next={...old,first_reply_at:firstReplyAt(old)??(data.reply.trim()?now():null),status:data.status,reply:data.reply.trim()||old.reply,messages:[...messages,...(data.reply.trim()?[{id:messageId??randomUUID(),role:'staff',content:data.reply.trim(),created_at:now()}]:[])],version:old.version+1,updated_at:now()};await tx.set('feedback',old.id,next);await audit(tx,a,'letter.reply',old.id);return next;});return respond({ok:true,feedback:safeLetter(row)});
         }
       }
+      if(route==='system-updates'&&method==='GET'){await authorize(cookies,true);return respond(systemUpdates);}
+      if(route==='reviews'){
+        if(method==='GET')return respond(await moderation.list(q,cookies));
+        if(method==='PATCH')return respond(await moderation.change(data,cookies));
+      }
       if(route==='notices'){
         if(method==='GET'){const manage=q.manage==='1';if(manage)await authorize(cookies);if(q.id){const n=idOK(q.id)?await store.get('notices',q.id):null;if(!n||!manage&&(n.state!=='published'||(n.publish_at??0)>now()))fail(404,'通知不存在或尚未发布。','Update is unavailable.');return respond({notices:[safeNotice(n)],hasMore:false});}const page=Math.max(0,Math.floor(Number(q.page)||0)),rows=await store.list('notices',manage?{}:{state:'published',published_before:now()},21,page*20);return respond({notices:rows.slice(0,20).map(safeNotice),hasMore:rows.length>20});}
-        await authorize(cookies);
-        if(method==='PATCH'&&data.action==='delete'){
-          if(!idOK(data.id)||!Number.isSafeInteger(data.version))fail(400,'无效通知。','Invalid update.');
-          await store.transaction(async tx=>{const a=await authorize(cookies,false,tx),old=await tx.get('notices',data.id);if(!old||old.version!==data.version)fail(409,'通知已变更，请刷新。','Update changed. Refresh.');await uploads.resolve([],old.attachments,{tx,actor:a.id,kind:'notice',id:data.id});await tx.remove('notices',data.id);await audit(tx,a,'notice.delete',data.id);});return respond({ok:true});
-        }
-        if(!textOK(data.title,2,120)||!textOK(data.content,1,6000)||!['draft','published'].includes(data.state))fail(400,'请检查通知标题、正文和状态。','Check update title, content and status.');
-        if(data.publish_at!==undefined&&(!Number.isSafeInteger(data.publish_at)||data.publish_at<0||data.publish_at>now()+366*86400000))fail(400,'请选择一年以内的发布时间。','Choose a publication time within one year.');
-        if(method==='POST'||method==='PATCH'){
-          if(method==='PATCH'&&(!idOK(data.id)||!Number.isSafeInteger(data.version)))fail(400,'无效通知。','Invalid update.');
-          const id=method==='POST'?randomUUID():data.id;
-          await store.transaction(async tx=>{const a=await authorize(cookies,false,tx),old=method==='PATCH'?await tx.get('notices',id):null;if(method==='PATCH'&&(!old||old.version!==data.version))fail(409,'通知已变更，请刷新。','Update changed. Refresh.');await tx.set('notices',id,{id,title:data.title.trim(),content:data.content.trim(),format:data.format==='markdown'?'markdown':'plain',align:['left','center','right'].includes(data.align)?data.align:'left',text_size:['small','normal','large','xlarge'].includes(data.text_size)?data.text_size:'normal',attachments:await uploads.resolve(data.attachments,old?.attachments,{tx,actor:a.id,kind:'notice',id}),publish_at:data.publish_at??old?.publish_at??now(),state:data.state,created_at:old?.created_at??now(),updated_at:now(),version:old?old.version+1:0});await audit(tx,a,'notice.'+(method==='POST'?'create':'update'),id);});return respond({ok:true,id},method==='POST'?201:200);
-        }
+        if(['POST','PATCH'].includes(method))return respond(await moderation.mutate('notice',method,data,cookies),method==='POST'?201:200);
       }
       if(route==='attachment'&&method==='GET'){
-        if(!idOK(q.id)||!idOK(q.file)||!['notice','poll'].includes(q.kind))fail(404,'附件不存在。','Attachment not found.');
-        const row=await store.get(q.kind==='notice'?'notices':'polls',q.id);
+        if(!idOK(q.id)||!idOK(q.file)||!['notice','poll','review'].includes(q.kind))fail(404,'附件不存在。','Attachment not found.');
+        const row=q.kind==='review'?await moderation.attachment(q.id,cookies):await store.get(q.kind==='notice'?'notices':'polls',q.id);
         if(!row)fail(404,'附件不存在。','Attachment not found.');
         if(q.kind==='notice'&&(row.state!=='published'||(row.publish_at??0)>now()))await authorize(cookies);
-        const files=q.kind==='notice'?row.attachments??[]:row.options.map(o=>o.image).filter(Boolean),file=files.find(f=>f.id===q.file);
+        const files=q.kind!=='poll'?row.attachments??[]:row.options.map(o=>o.image).filter(Boolean),file=files.find(f=>f.id===q.file);
         if(file?.chunked){
           if(q.part===undefined)return respond({chunked:true,chunks:file.chunks,size:file.size,type:file.type,name:file.name});
           const body=await uploads.read(file,Number(q.part));
@@ -270,33 +267,17 @@ function createApp({store,config,now=Date.now}) {
         if(q.id&&!idOK(q.id))fail(404,'投票不存在。','Poll not found.');
         const where=q.state==='open'?{state:'open',ends_after:now()}:q.state==='closed'?{closed_at:now()}:{};
         const page=Math.max(0,Math.floor(Number(q.page)||0)),allRows=q.id?[await store.get('polls',q.id)].filter(Boolean):await store.list('polls',where,21,page*20),rows=allRows.slice(0,20),polls=[];
+        const votes=await store.getMany('votes',rows.map(p=>hash(p.id+':'+voter)));const activities=manage?await store.getMany('activity',rows.map(p=>hash(p.id))):new Map();
         if(q.id&&!rows.length)fail(404,'投票不存在。','Poll not found.');
-        for(let start=0;start<rows.length;start+=10){const group=await Promise.all(rows.slice(start,start+10).map(async p=>{const vote=await store.get('votes',hash(p.id+':'+voter));let protection;
-          if(manage){protection={accepted:0,blocked:0};const stat=await store.get('activity',hash(p.id));for(const b of stat?.buckets??[]){if(b.minute>Math.floor(now()/60000)-15){protection.accepted+=b.accepted;protection.blocked+=b.blocked;}}}
+        for(let start=0;start<rows.length;start+=10){const group=await Promise.all(rows.slice(start,start+10).map(async p=>{const vote=votes.get(hash(p.id+':'+voter));let protection;
+          if(manage){protection={accepted:0,blocked:0};const stat=activities.get(hash(p.id));for(const b of stat?.buckets??[]){if(b.minute>Math.floor(now()/60000)-15){protection.accepted+=b.accepted;protection.blocked+=b.blocked;}}}
           const closed=p.ends_at<=now()||p.state==='closed',choices=vote?(vote.choices??[vote.option]):[];
           const options=p.options.map(o=>({id:o.id,label:o.label,...(o.image?{image:fileMeta(o.image)}:{}),...(manage||closed&&p.show_counts!==false?{votes:o.votes}:{}),...(closed&&p.show_percent!==false?{percent:p.total?Math.round(o.votes/p.total*100):0}:{})}));
           if(closed){const ranks=new Map([...p.options].sort((a,b)=>b.votes-a.votes).map((o,i,list)=>[o.id,list.findIndex(x=>x.votes===o.votes)+1]));options.sort((a,b)=>ranks.get(a.id)-ranks.get(b.id));options.forEach(o=>o.rank=ranks.get(o.id));}
           return {id:p.id,title:p.title,description:p.description,state:closed?'closed':'open',created_at:p.created_at,ends_at:p.ends_at,version:p.version??0,max_choices:p.max_choices??1,show_counts:p.show_counts!==false,show_percent:p.show_percent!==false,options,...(manage||closed&&p.show_counts!==false?{total:p.total}:{}),choices,...(choices.length?{choice:choices[0]}:{}),...(protection?{protection}:{})};
         }));polls.push(...group);}return respond({polls,hasMore:allRows.length>20,server_now:now()});
       }
-      if(route==='polls'&&(method==='POST'||method==='PATCH')){
-        await authorize(cookies);
-        if(method==='PATCH'&&data.action==='delete'){
-          if(!idOK(data.id)||!Number.isSafeInteger(data.version))fail(400,'无效投票。','Invalid poll.');
-          await store.transaction(async tx=>{const a=await authorize(cookies,false,tx),old=await tx.get('polls',data.id);if(!old)fail(404,'投票不存在。','Poll unavailable.');if((old.version??0)!==data.version)fail(409,'投票已变更，请刷新后删除。','Poll changed.');await uploads.resolve([],old.options.map(o=>o.image).filter(Boolean),{tx,actor:a.id,kind:'poll',id:old.id});await tx.remove('polls',old.id);await tx.remove('activity',hash(old.id));await audit(tx,a,'poll.delete',old.id);});return respond({ok:true});
-        }
-        if(method==='POST'||data.action==='edit'){
-          const opts=Array.isArray(data.options)?data.options.map(o=>typeof o==='string'?{label:o}:o):[],max=data.max_choices??1;
-          if(!textOK(data.title,2,120)||!textOK(data.description,0,2000)||opts.length<2||opts.length>8||opts.some(o=>!o||!textOK(o.label,1,100))||new Set(opts.map(o=>o.label.trim().toLowerCase())).size!==opts.length||!Number.isInteger(max)||max<1||max>opts.length||!Number.isSafeInteger(data.ends_at)||data.ends_at<=now()||data.ends_at>now()+366*86400000)fail(400,'请检查投票题目、选项、最多选择数和截止时间。','Check question, options, selection limit and deadline.');
-          if(method==='PATCH'&&(!idOK(data.id)||!Number.isSafeInteger(data.version)))fail(400,'无效投票。','Invalid poll.');
-          const id=method==='POST'?randomUUID():data.id;await store.transaction(async tx=>{const a=await authorize(cookies,false,tx),old=method==='PATCH'?await tx.get('polls',id):null;
-            if(method==='PATCH'&&(!old||old.state==='closed'||old.ends_at<=now()||old.total>0||(old.version??0)!==data.version))fail(409,'已有投票、已截止或内容已变更，不能再修改选项。','Poll has votes, is closed or changed. Options cannot be edited.');
-            const images=await uploads.resolve(opts.filter(o=>o.image).map(o=>o.image),old?.options.map(o=>o.image).filter(Boolean),{tx,actor:a.id,kind:'poll',id});let imageIndex=0;
-            if(images.some(f=>!f.type.startsWith('image/')))fail(400,'投票选项只能使用图片。','Poll options accept images only.');
-            await tx.set('polls',id,{id,title:data.title.trim(),description:data.description.trim(),options:opts.map(o=>({id:old?.options.find(x=>x.id===o.id)?.id??randomUUID(),label:o.label.trim(),votes:0,...(o.image?{image:images[imageIndex++]}:{})})),max_choices:max,show_counts:data.show_counts!==false,show_percent:data.show_percent!==false,version:old?(old.version??0)+1:0,state:'open',created_at:old?.created_at??now(),ends_at:data.ends_at,total:0});await audit(tx,a,old?'poll.edit':'poll.create',id);});return respond({ok:true,id},method==='POST'?201:200);
-        }
-        if(!idOK(data.id)||data.action&&!['close','settings'].includes(data.action))fail(400,'无效投票。','Invalid poll.');await store.transaction(async tx=>{const a=await authorize(cookies,false,tx),p=await tx.get('polls',data.id);if(!p)fail(404,'投票不存在。','Poll not found.');if(data.action==='settings'&&(typeof data.show_counts!=='boolean'||typeof data.show_percent!=='boolean'))fail(400,'无效展示设置。','Invalid result settings.');await tx.set('polls',p.id,{...p,version:(p.version??0)+1,...(data.action==='settings'?{show_counts:data.show_counts,show_percent:data.show_percent}:{state:'closed'})});await audit(tx,a,data.action==='settings'?'poll.settings':'poll.close',p.id);});return respond({ok:true});
-      }
+      if(route==='polls'&&(method==='POST'||method==='PATCH'))return respond(await moderation.mutate('poll',method,data,cookies),method==='POST'?201:200);
       if((route==='ballot'&&method==='POST')||(route==='polls'&&method==='PUT')){
         if(!idOK(data.id))fail(400,'无效投票。','Invalid poll.');
         const voter=cookies[voterName];if(!/^[a-f0-9]{64}$/.test(voter??''))fail(400,'请刷新投票页面后重试。','Refresh the poll page and try again.');

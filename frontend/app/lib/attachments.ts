@@ -1,7 +1,7 @@
 import {api,readResponse} from './client';
 import type {Attachment} from './modules';
 export const MAX_FILE=10*1024*1024,MAX_TOTAL=40*1024*1024;
-export function fileURL(kind:'notice'|'poll',id:string,file:Attachment){const u=new URL(window.BRIDGE_CONFIG?.apiBase??'/bridge-api',location.origin);u.search=new URLSearchParams({route:'attachment',kind,id,file:file.id}).toString();return u.href;}
+export function fileURL(kind:'notice'|'poll'|'review',id:string,file:Attachment){const u=new URL(window.BRIDGE_CONFIG?.apiBase??'/bridge-api',location.origin);u.search=new URLSearchParams({route:'attachment',kind,id,file:file.id}).toString();return u.href;}
 export function attachmentReference(file:Attachment){const {data,uploaded,...reference}=file;return reference;}
 export async function uploadAttachment(file:Attachment,onProgress:(percent:number)=>void):Promise<Attachment>{
  if(!file.data||file.uploaded)return file;
@@ -18,7 +18,7 @@ export async function uploadAttachment(file:Attachment,onProgress:(percent:numbe
  }
  return {...file,id:upload.id,chunked:true,chunks:upload.chunks,uploaded:true};
 }
-export async function attachmentBlob(kind:'notice'|'poll',id:string,file:Attachment,signal?:AbortSignal):Promise<Blob>{
+export async function attachmentBlob(kind:'notice'|'poll'|'review',id:string,file:Attachment,signal?:AbortSignal):Promise<Blob>{
  const base=fileURL(kind,id,file);
  if(!file.chunked){const r=await fetch(base,{signal,credentials:'same-origin'});if(!r.ok)throw Error('附件加载失败，请重试。');return r.blob();}
  if(!Number.isInteger(file.chunks)||file.chunks!<1||file.chunks!>20||file.size>MAX_FILE)throw Error('附件信息无效，请刷新。');

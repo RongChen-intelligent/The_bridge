@@ -1,0 +1,35 @@
+{
+  "version": "1.5.0",
+  "date": "2026-10-20",
+  "archivedBeforeRemoval": true,
+  "archive": "D:\\Codex\\2026-10-18\\design-taste-frontend-c-users-yyj77\\work\\moderation-upgrade\\previous-1.4.0-delivery.zip",
+  "archiveSha256": "a5518e6f5dcd12d5355b3c70c48a712633b8099e21d2ab5c1de8029022054954",
+  "removedFiles": [
+    {
+      "name": "01-THE-BRIDGE-前端-1.4.0.zip",
+      "sha256": "feabc1d6a718295a764d66f617e7580567bf6f967d9aab231bf4ee2b5da3c460"
+    },
+    {
+      "name": "02-THE-BRIDGE-云函数-1.4.0.zip",
+      "sha256": "e6803ed0aae2a09b6e67961a88544a25babf6eb5c13d98a2074d91906eae3520"
+    },
+    {
+      "name": "03-THE-BRIDGE-源码备份-1.4.0.zip",
+      "sha256": "6ada90c1b2d505f3d98e648ac8e55ad27cb0ad51b9f7e7f9ccc0430fb2a109dd"
+    }
+  ],
+  "movedDirectories": [
+    {
+      "from": "outputs/01-THE-BRIDGE-前端-1.4.0",
+      "to": "work/moderation-upgrade/previous-01-THE-BRIDGE-前端-1.4.0"
+    },
+    {
+      "from": "outputs/界面预览 (1.4.0)",
+      "to": "work/moderation-upgrade/previous-界面预览"
+    }
+  ],
+  "preserved": [
+    "THE-BRIDGE-CSIA准备材料-1.4.0.docx",
+    "原账号、环境变量和数据库（未进行线上改动）"
+  ]
+}
